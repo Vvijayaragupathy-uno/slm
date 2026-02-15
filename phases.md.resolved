@@ -1,0 +1,46 @@
+# AICCORE Museum Agent Arena - Project Phases
+
+This document outlines the high-level roadmap for building the AICCORE Museum Agent Arena. The goal is to create a gamified AI agent-building experience while keeping the underlying Langflow engine clean and upgradeable.
+
+---
+
+## Phase 1: Setup & Wrapper Integration
+**Goal**: Establish the AICCORE execution environment without modifying Langflow core.
+
+- **Wrapper Entry Point**: Create a custom backend that boots Langflow as a sub-component.
+- **Environment Isolation**: Set up Python paths and configurations to ensure AICCORE and Langflow logic remain separate.
+- **Success Criteria**: Langflow runs and is accessible via the AICCORE wrapper.
+
+---
+
+## Phase 2: Telemetry & Event Capture
+**Goal**: Record every action a student takes while building their agent.
+
+- **Event Interception**: Implement middleware to capture node additions, edge connections, and parameter changes.
+- **Database Schema**: Set up a PostgreSQL database to store sessions and event logs.
+- **Event Replay Prototype**: Ensure captured data is sufficient to reconstruct a student's build sequence.
+
+---
+
+## Phase 3: Submissions & Admin Review
+**Goal**: Allow students to submit their work and enable human evaluation.
+
+- **Submit Workflow**: Save a full snapshot of the student's flow upon submission.
+- **Admin Review Panel**: A backend interface for staff to browse and inspect submitted agents.
+- **Winner Marking**: Enable staff to manually select and publish daily/weekly winners.
+
+---
+
+## Phase 4: Live Dashboard & Spectator Mode
+**Goal**: Create a visual "Arena" experience in the museum.
+
+- **Live Leaderboard**: A real-time display of high scores and recent winners.
+- **Active Stations**: Show which builder stations are currently in use.
+- **Real-time Updates**: Use WebSockets to push winner announcements to the dashboard instantly.
+
+---
+
+## Architectural Constraints (Reminder)
+- **No Direct Edits**: Never modify files inside the `langflow/` directory.
+- **Separate Storage**: AICCORE data (sessions, events) must live in a separate database from Langflow data.
+- **Middleware Injection**: Use FastAPI middleware for all integration logic.
