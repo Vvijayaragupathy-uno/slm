@@ -8,27 +8,58 @@ import {
   Users,
   Cpu,
   Shield,
+  Lock,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface ArenaSidebarProps {
   activeTab: string
   onTabChange: (tab: string) => void
+  isAuthenticated?: boolean
 }
 
 const navItems = [
   { id: "live", label: "Spectator Deck", icon: LayoutDashboard },
   { id: "mosaic", label: "Mosaic Arena", icon: Trophy },
-  { id: "review", label: "Curator Review", icon: ClipboardCheck },
+  { id: "review", label: "Curator Review", icon: ClipboardCheck, protected: true },
 ]
 
 const bottomItems = [
-  { id: "contestants", label: "Arena Registry", icon: Users },
-  { id: "stations", label: "Station Status", icon: Cpu },
-  { id: "settings", label: "Arena Config", icon: Settings },
+  { id: "contestants", label: "Arena Registry", icon: Users, protected: true },
+  { id: "stations", label: "Station Status", icon: Cpu, protected: true },
+  { id: "settings", label: "Arena Config", icon: Settings, protected: true },
 ]
 
-export function ArenaSidebar({ activeTab, onTabChange }: ArenaSidebarProps) {
+
+
+export function ArenaSidebar({ activeTab, onTabChange, isAuthenticated = false }: ArenaSidebarProps) {
+  const renderItem = (item: any) => {
+    const Icon = item.icon
+    const isActive = activeTab === item.id
+    const isLocked = item.protected && !isAuthenticated
+
+    return (
+      <button
+        key={item.id}
+        onClick={() => onTabChange(item.id)}
+        className={cn(
+          "flex items-center justify-between w-full rounded-lg px-3 py-2 text-sm transition-all duration-200 group",
+          isActive
+            ? "bg-primary/10 text-primary ring-1 ring-primary/20 font-medium"
+            : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <Icon className={cn("h-4 w-4", !isActive && "group-hover:scale-110 transition-transform")} />
+          <span className="truncate">{item.label}</span>
+        </div>
+        {isLocked && (
+          <Lock className="h-3 w-3 text-muted-foreground/40 group-hover:text-amber-400 group-hover:animate-bounce transition-colors" />
+        )}
+      </button>
+    )
+  }
+
   return (
     <aside className="hidden lg:flex flex-col w-56 border-r border-border glass-strong h-full" role="navigation" aria-label="Main navigation">
       <div className="flex items-center gap-2.5 px-4 py-5 border-b border-border">
@@ -36,66 +67,47 @@ export function ArenaSidebar({ activeTab, onTabChange }: ArenaSidebarProps) {
           <Shield className="h-4 w-4 text-primary" />
         </div>
         <div className="flex flex-col">
-          <span className="text-xs font-bold tracking-wide text-foreground">Arena</span>
-          <span className="text-[10px] font-mono text-muted-foreground/60 tracking-wider">DASHBOARD</span>
+          <span className="text-xs font-bold tracking-wide text-foreground uppercase tracking-wider">AICCORE</span>
+          <span className="text-[10px] font-mono text-muted-foreground/60 tracking-widest">ARENA</span>
         </div>
       </div>
 
       <nav className="flex flex-col gap-1 p-3 flex-1">
-        <span className="text-[10px] font-medium tracking-widest text-muted-foreground/50 uppercase px-2 pb-2 pt-1">
-          Main
+        <span className="text-[10px] font-medium tracking-widest text-muted-foreground/50 uppercase px-2 pb-2 pt-1 font-mono">
+          Spectator
         </span>
-        {navItems.map((item) => {
-          const Icon = item.icon
-          const isActive = activeTab === item.id
+        {navItems.map(renderItem)}
 
-          return (
-            <button
-              key={item.id}
-              onClick={() => onTabChange(item.id)}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200",
-                isActive
-                  ? "bg-primary/10 text-primary ring-1 ring-primary/20 font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </button>
-          )
-        })}
-
-        <span className="text-[10px] font-medium tracking-widest text-muted-foreground/50 uppercase px-2 pb-2 pt-5">
-          Arena Control
+        <span className="text-[10px] font-medium tracking-widest text-muted-foreground/50 uppercase px-2 pb-2 pt-5 font-mono">
+          Operations
         </span>
-        {bottomItems.map((item) => {
-          const Icon = item.icon
-          const isActive = activeTab === item.id
-          return (
-            <button
-              key={item.id}
-              onClick={() => onTabChange(item.id)}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200",
-                isActive
-                  ? "bg-primary/10 text-primary ring-1 ring-primary/20 font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </button>
-          )
-        })}
+        {bottomItems.map(renderItem)}
       </nav>
 
       <div className="p-3 border-t border-border">
-        <div className="flex items-center gap-2 rounded-lg bg-primary/5 px-3 py-2.5 ring-1 ring-primary/10">
+        {!isAuthenticated ? (
+          <div className="flex flex-col gap-2 p-3 rounded-xl bg-orange-500/5 ring-1 ring-orange-500/10 mb-2">
+            <div className="flex items-center gap-2 text-orange-400">
+              <Lock className="h-3 w-3" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Restricted Access</span>
+            </div>
+            <p className="text-[9px] text-muted-foreground leading-relaxed">
+              Login to modify registry, rules, and award honors.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 p-3 rounded-xl bg-primary/5 ring-1 ring-primary/10 mb-2">
+            <div className="flex items-center gap-2 text-primary">
+              <Shield className="h-3 w-3" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Admin Authorized</span>
+            </div>
+          </div>
+        )}
+        <div className="flex items-center gap-2 rounded-lg bg-secondary/30 px-3 py-2.5 ring-1 ring-border">
           <Trophy className="h-4 w-4 text-amber-400" />
           <div className="flex flex-col">
-            <span className="text-[10px] text-muted-foreground">Arena Lifecycle</span>
-            <span className="text-xs font-mono font-semibold text-foreground">Active Round</span>
+            <span className="text-[10px] text-muted-foreground">Arena State</span>
+            <span className="text-xs font-mono font-semibold text-foreground italic">LIVE ROUND</span>
           </div>
         </div>
       </div>

@@ -25,46 +25,137 @@ class AICCoreEventMiddleware(BaseHTTPMiddleware):
             
         if not session_id_str:
             session_id_str = request.query_params.get("session_id")
+
+        if not session_id_str:
+            # Robust fallback for IFrames: Check Referer query params
+            referer = request.headers.get("referer")
+            if referer and "session_id=" in referer:
+                try:
+                    import urllib.parse
+                    parsed = urllib.parse.urlparse(referer)
+                    qs = urllib.parse.parse_qs(parsed.query)
+                    session_id_str = qs.get("session_id", [None])[0]
+                except:
+                    pass
             
         if not session_id_str:
             return await call_next(request)
         
         try:
             session_id = UUID(session_id_str)
-            # print(f"🎯 Intercepted AICCORE Request: {method} {path} for session {session_id}")
         except (ValueError, TypeError):
             return await call_next(request)
 
-        # Capture "flow_saved"
-        if method == "PATCH" and "/api/v1/flows/" in path:
-            return await self._handle_flow_save(request, call_next, session_id)
+        # Capture Workspace Changes (Flows, Folders, and Variables)
+        # We intercept Creations (POST), Updates (PATCH), and Deletions (DELETE)
+        # to ensure the persistent profile always has a perfect snapshot.
+        is_workspace_change = False
+        workspace_paths = ["/api/v1/flows", "/api/v1/folders", "/api/v1/variables"]
+        
+        if any(p in path for p in workspace_paths):
+            if method in ["POST", "PATCH", "DELETE"]:
+                is_workspace_change = True
+
+        if is_workspace_change:
+            return await self._handle_workspace_change(request, call_next, session_id)
             
-        # Capture "flow_run"
-        if method == "POST" and "/api/v1/run/" in path:
-            return await self._handle_flow_run(request, call_next, session_id)
+        # Capture granular "build" and "run" events for live sharing
+        if method == "POST":
+            # Flow Run / Build
+            if "/api/v1/build/" in path and "/flow" in path:
+                return await self._handle_granular_event(request, call_next, session_id, "flow_run")
+            
+            # Vertex Build (Single node)
+            if "/api/v1/build/" in path and "/vertices/" in path:
+                return await self._handle_granular_event(request, call_next, session_id, "vertex_run")
 
         return await call_next(request)
 
-    async def _handle_flow_save(self, request, call_next, session_id):
-        response = await call_next(request)
-        print(f"📝 Logging flow_saved event (Status: {response.status_code})")
-        self._log_event(session_id, "flow_saved", {"path": request.url.path, "status": response.status_code})
+    async def _handle_workspace_change(self, request: Request, call_next, session_id: UUID):
+        # Allow the operation to complete first so the DB is updated
+        # We need to read the body safely if it's a POST/PATCH
+        if request.method in ["POST", "PATCH"]:
+            body_bytes = await request.body()
+            async def receive():
+                return {"type": "http.request", "body": body_bytes}
+            new_request = Request(request.scope, receive=receive)
+            response = await call_next(new_request)
+        else:
+            response = await call_next(request)
+
+        # Trigger a background snapshot of the entire workspace
+        # This is more robust than capturing individual changes
+        if response.status_code < 300: # Only if operation succeeded
+            try:
+                from .eraser import capture_full_workspace_snapshot
+                # Run in background to not block the UI
+                asyncio.create_task(capture_full_workspace_snapshot(session_id))
+            except Exception as e:
+                print(f"❌ Failed to trigger workspace snapshot: {e}")
+
         return response
 
-    async def _handle_flow_run(self, request, call_next, session_id):
-        print(f"📝 Logging flow_run_started event")
-        self._log_event(session_id, "flow_run_started", {"path": request.url.path})
+    async def _handle_flow_save(self, request: Request, call_next, session_id: UUID):
+        # We must read the body without consuming it for the next handler
+        body_bytes = await request.body()
+        
+        # Create a new request with the body bytes so the next handler can read it
+        async def receive():
+            return {"type": "http.request", "body": body_bytes}
+            
+        new_request = Request(request.scope, receive=receive)
+        
+        try:
+            body = json.loads(body_bytes)
+            flow_data = body.get("data", {})
+        except:
+            flow_data = {}
+        
+        # Get user details for broadcast
+        nickname = "Builder"
+        station_id = "0"
+        with Session(engine) as db_session:
+            from .models import Session as AICSession
+            s = db_session.get(AICSession, session_id)
+            if s:
+                nickname = s.nickname
+                station_id = str(s.station_id)
+
+        response = await call_next(new_request)
+        
+        # Log and Broadcast with snapshot
+        payload = {
+            "nickname": nickname,
+            "station_id": station_id,
+            "snapshot": {
+                "nodes": flow_data.get("nodes", []),
+                "edges": flow_data.get("edges", [])
+            }
+        }
+        
+        self._log_event(session_id, "flow_saved", payload)
+        return response
+
+    async def _handle_granular_event(self, request: Request, call_next, session_id: UUID, category: str):
+        path = request.url.path
+        metadata = {"path": path}
+        
+        # Extract vertex_id if present in path
+        if category == "vertex_run":
+            parts = path.split("/")
+            if len(parts) >= 7: # /api/v1/build/{id}/vertices/{vertex_id}
+                metadata["vertex_id"] = parts[6]
+
+        self._log_event(session_id, f"{category}_started", metadata)
         start_time = datetime.utcnow()
         response = await call_next(request)
         duration = (datetime.utcnow() - start_time).total_seconds()
         
-        print(f"📝 Logging flow_run_completed event (Status: {response.status_code})")
-        self._log_event(session_id, "flow_run_completed", {
-            "path": request.url.path,
-            "status": "success" if response.status_code < 400 else "error",
-            "status_code": response.status_code,
-            "duration": duration
-        })
+        metadata["status"] = "success" if response.status_code < 400 else "error"
+        metadata["status_code"] = response.status_code
+        metadata["duration"] = duration
+        
+        self._log_event(session_id, f"{category}_completed", metadata)
         return response
 
     def _log_event(self, session_id: UUID, event_type: str, payload: dict):

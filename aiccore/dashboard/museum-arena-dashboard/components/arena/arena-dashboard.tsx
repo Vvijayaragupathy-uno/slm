@@ -8,6 +8,8 @@ import { Leaderboard } from "./leaderboard"
 import { ReviewPanel } from "./review-panel"
 import { MosaicArena } from "./mosaic-arena"
 import { UserRegistry } from "./user-registry"
+import { ArenaConfig } from "./arena-config"
+import { StationStatus } from "./station-status"
 import { LoginPage } from "./login-page"
 import { cn } from "@/lib/utils"
 
@@ -65,23 +67,33 @@ export function ArenaDashboard() {
     setIsAuthenticated(false)
   }
 
+  // Determine if the current tab is a management/private tab
+  const isManagementTab = ["review", "contestants", "settings", "stations"].includes(activeTab)
+
   if (isAuthenticated === null) {
     return <div className="h-screen w-screen bg-black flex items-center justify-center">
       <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
     </div>
   }
 
-  if (!isAuthenticated) {
-    return <LoginPage onLogin={handleLogin} />
-  }
+  // If selecting a management tab while not logged in, show login
+  const showLogin = isManagementTab && !isAuthenticated
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      <ArenaHeader stationCount={stationCount} onLogout={handleLogout} />
+      <ArenaHeader
+        stationCount={stationCount}
+        onLogout={handleLogout}
+        isAuthenticated={!!isAuthenticated}
+      />
       <MobileTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
       <div className="flex flex-1 overflow-hidden">
-        <ArenaSidebar activeTab={activeTab} onTabChange={setActiveTab} />
+        <ArenaSidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isAuthenticated={!!isAuthenticated}
+        />
 
         <main className="flex-1 overflow-auto bg-background/50 backdrop-blur-3xl">
           <div className="p-6">
@@ -89,19 +101,27 @@ export function ArenaDashboard() {
             <div className="mb-6 flex items-center justify-between">
               <div className="flex flex-col gap-1">
                 <h1 className="text-lg font-bold tracking-wide text-foreground">
-                  {activeTab === "live" ? "Live Spectator Leaderboard" :
-                    activeTab === "mosaic" ? "Mosaic Workflow Arena" :
-                      activeTab === "contestants" ? "Contestant Registry" :
-                        "Admin Review Panel"}
+                  {showLogin ? "Administrator Authentication" :
+                    activeTab === "live" ? "Live Spectator Leaderboard" :
+                      activeTab === "mosaic" ? "Mosaic Workflow Arena" :
+                        activeTab === "contestants" ? "Contestant Registry" :
+                          activeTab === "settings" ? "Arena Configuration" :
+                            activeTab === "stations" ? "Station Hardware Status" :
+                              "Admin Review Panel"}
                 </h1>
                 <p className="text-xs text-muted-foreground">
-                  {activeTab === "live"
-                    ? "Real-time progress of all contestants in the arena"
-                    : activeTab === "mosaic"
-                      ? "Live view of all active builder workflows"
-                      : activeTab === "contestants"
-                        ? "Manage builder access codes and session status"
-                        : "Review and approve submitted agent flows"}
+                  {showLogin ? "Secure access required for management utilities" :
+                    activeTab === "live"
+                      ? "Real-time progress of all contestants in the arena"
+                      : activeTab === "mosaic"
+                        ? "Live view of all active builder workflows"
+                        : activeTab === "contestants"
+                          ? "Manage builder access codes and session status"
+                          : activeTab === "settings"
+                            ? "Global arena rules, challenges, and system honors"
+                            : activeTab === "stations"
+                              ? "Telemetry and health monitoring for local hardware"
+                              : "Review and approve submitted agent flows"}
                 </p>
               </div>
             </div>
@@ -112,12 +132,20 @@ export function ArenaDashboard() {
                 "transition-all duration-300 ease-out",
                 "animate-slide-in h-min-screen h-full"
               )}
-              key={activeTab}
+              key={activeTab + (showLogin ? "-login" : "")}
             >
-              {activeTab === "live" ? <Leaderboard onDataUpdate={setStationCount} refreshKey={refreshKey} /> :
-                activeTab === "mosaic" ? <MosaicArena /> :
-                  activeTab === "contestants" ? <UserRegistry refreshKey={refreshKey} /> :
-                    <ReviewPanel />}
+              {showLogin ? (
+                <LoginPage onLogin={handleLogin} />
+              ) : (
+                <>
+                  {activeTab === "live" ? <Leaderboard onDataUpdate={setStationCount} refreshKey={refreshKey} /> :
+                    activeTab === "mosaic" ? <MosaicArena /> :
+                      activeTab === "contestants" ? <UserRegistry refreshKey={refreshKey} /> :
+                        activeTab === "settings" ? <ArenaConfig /> :
+                          activeTab === "stations" ? <StationStatus /> :
+                            <ReviewPanel />}
+                </>
+              )}
             </div>
           </div>
         </main>

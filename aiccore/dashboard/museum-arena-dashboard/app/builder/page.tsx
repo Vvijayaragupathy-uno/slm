@@ -2,19 +2,28 @@
 
 import { useState, useEffect } from "react"
 import { LockScreen } from "@/components/arena/lock-screen"
-import { Shield, Rocket, ExternalLink, RefreshCw, Trophy, CheckCircle2 } from "lucide-react"
+import { Shield, Rocket, RefreshCw, Trophy, CheckCircle2, Zap, BarChart3, Medal } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export default function ArenaBuilderPage() {
     const [session, setSession] = useState<{ id: string; nickname: string } | null>(null)
+    const [stats, setStats] = useState<{ flows: number; achievements: number } | null>(null)
     const [iframeLoaded, setIframeLoaded] = useState(false)
     const [isSubmitted, setIsSubmitted] = useState(false)
 
     // Handle unlock from LockScreen
-    const handleUnlock = (sessionId: string, nickname: string) => {
+    const handleUnlock = (sessionId: string, nickname: string, userStats?: any) => {
         setSession({ id: sessionId, nickname })
         localStorage.setItem("aiccore_session_id", sessionId)
         localStorage.setItem("aiccore_nickname", nickname)
+        document.cookie = `aiccore_session_id=${sessionId}; path=/; max-age=86400; SameSite=Lax`
+
+        if (userStats) {
+            setStats({ flows: userStats.flows_count || 0, achievements: userStats.achievements_count || 0 })
+            localStorage.setItem("aiccore_flows_count", String(userStats.flows_count || 0))
+            localStorage.setItem("aiccore_achievements_count", String(userStats.achievements_count || 0))
+        }
+
         setIsSubmitted(false)
     }
 
@@ -22,14 +31,21 @@ export default function ArenaBuilderPage() {
         if (session) {
             try {
                 const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-                await fetch(`http://${host}:7860/api/v1/aiccore/session/${session.id}/deactivate`, { method: "POST" })
+                await fetch(`http://${host}:7860/api/v1/aiccore/session/${session.id}/deactivate`, {
+                    method: "POST",
+                    credentials: "include"
+                })
             } catch (err) {
                 console.error("Cleanup failed:", err)
             }
         }
         localStorage.removeItem("aiccore_session_id")
         localStorage.removeItem("aiccore_nickname")
+        localStorage.removeItem("aiccore_flows_count")
+        localStorage.removeItem("aiccore_achievements_count")
+        document.cookie = "aiccore_session_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC"
         setSession(null)
+        setStats(null)
         setIframeLoaded(false)
         setIsSubmitted(false)
     }
@@ -41,14 +57,22 @@ export default function ArenaBuilderPage() {
         const checkStatus = async () => {
             try {
                 const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-                const response = await fetch(`http://${host}:7860/api/v1/aiccore/session/${session.id}/status`)
+                const response = await fetch(`http://${host}:7860/api/v1/aiccore/session/${session.id}/status`, {
+                    credentials: "include"
+                })
+
+                if (response.status === 404) {
+                    console.warn("Session expired or purged. Resetting...")
+                    handleReset()
+                    return
+                }
+
                 const data = await response.json()
                 if (data.is_submitted) {
                     setIsSubmitted(true)
                 }
             } catch (err) {
-                // Silently log polling failures to avoid dev overlay
-                console.log("Status poll failed (backend might be restarting):", err)
+                console.log("Status poll failed:", err)
             }
         }
 
@@ -60,8 +84,14 @@ export default function ArenaBuilderPage() {
     useEffect(() => {
         const savedId = localStorage.getItem("aiccore_session_id")
         const savedName = localStorage.getItem("aiccore_nickname")
+        const savedFlows = localStorage.getItem("aiccore_flows_count")
+        const savedAchs = localStorage.getItem("aiccore_achievements_count")
+
         if (savedId && savedName) {
             setSession({ id: savedId, nickname: savedName })
+            if (savedFlows !== null && savedAchs !== null) {
+                setStats({ flows: Number(savedFlows), achievements: Number(savedAchs) })
+            }
         }
     }, [])
 
@@ -132,6 +162,19 @@ export default function ArenaBuilderPage() {
                 </div>
 
                 <div className="flex items-center gap-4">
+                    {stats && (
+                        <div className="flex items-center gap-3 border-r border-border pr-4 mr-2">
+                            <div className="flex items-center gap-1.5 opacity-70">
+                                <BarChart3 className="h-3 w-3 text-primary" />
+                                <span className="text-[10px] font-bold font-mono tracking-tighter uppercase">{stats.flows} FLOWS</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 opacity-70">
+                                <Medal className="h-3 w-3 text-amber-500" />
+                                <span className="text-[10px] font-bold font-mono tracking-tighter uppercase">{stats.achievements} BADGES</span>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 ring-1 ring-primary/20">
                         <div className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                         <span className="text-[10px] font-bold text-foreground">Participant: {session.nickname}</span>
@@ -174,28 +217,10 @@ export default function ArenaBuilderPage() {
                     <span>LATENCY: 12ms</span>
                 </div>
                 <div className="flex gap-2 items-center">
-                    <Zap className="h-3 w-3 text-amber-400 fill-amber-400" />
+                    <Zap className="h-3 w-3 text-amber-400 fill-amber-400 animate-pulse" />
                     <span>LIVE TELEMETRY ACTIVE</span>
                 </div>
             </footer>
         </div>
-    )
-}
-
-function Zap({ className }: { className?: string }) {
-    return (
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24" height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={className}
-        >
-            <path d="M4 14.71 13 4v10h7L11 24V14H4z" />
-        </svg>
     )
 }

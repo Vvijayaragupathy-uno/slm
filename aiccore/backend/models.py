@@ -47,6 +47,7 @@ class User(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     username: Mapped[str] = mapped_column(String, unique=True)
     nickname: Mapped[str] = mapped_column(String)
+    password: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Simple password for returning users
     unlock_code: Mapped[str] = mapped_column(String, unique=True, index=True) # 4-digit code
     unlock_code_generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     honors: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict) # To store earned achievements

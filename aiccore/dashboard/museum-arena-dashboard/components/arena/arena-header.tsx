@@ -1,17 +1,27 @@
-"use client"
-
-import { Activity, Radio, Shield, Zap, LogOut } from "lucide-react"
+import { Activity, Radio, Shield, Zap, LogOut, Share2, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useState } from "react"
 
 export function ArenaHeader({
   stationCount = 8,
-  onLogout
+  onLogout,
+  isAuthenticated = false
 }: {
   stationCount?: number,
-  onLogout?: () => void
+  onLogout?: () => void,
+  isAuthenticated?: boolean
 }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleShare = () => {
+    const url = window.location.origin
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
-    <header className="sticky top-0 z-50 glass-strong">
+    <header className="sticky top-0 z-50 glass-strong border-b border-border">
       <div className="flex items-center justify-between px-6 py-3">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2.5">
@@ -20,16 +30,16 @@ export function ArenaHeader({
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold tracking-wide text-foreground">
+                <span className="text-sm font-bold tracking-wide text-foreground uppercase">
                   AICCORE
                 </span>
                 <span className="text-muted-foreground text-xs font-light">|</span>
                 <span className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
-                  Museum Agent Arena
+                  Arena Spectator
                 </span>
               </div>
               <span className="text-[10px] font-mono text-muted-foreground/60 tracking-wider uppercase">
-                Command Center v1.0
+                {isAuthenticated ? "Administrative Control" : "Public View Deck"}
               </span>
             </div>
           </div>
@@ -38,20 +48,34 @@ export function ArenaHeader({
         <div className="flex items-center gap-5">
           <div className="flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 ring-1 ring-border">
             <Activity className="h-3.5 w-3.5 text-emerald-400 animate-pulse-glow" />
-            <span className="text-xs font-medium text-emerald-400">ACTIVE</span>
-            <span className="text-xs text-muted-foreground font-mono">{stationCount} stations</span>
+            <span className="text-xs font-medium text-emerald-400">LIVE</span>
+            <span className="text-xs text-muted-foreground font-mono">{stationCount} active stations</span>
           </div>
 
-          <div className="flex items-center gap-6 border-l border-border pl-6 ml-1">
+          <div className="flex items-center gap-2 border-l border-border pl-5 ml-1">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="text-muted-foreground hover:text-foreground hover:bg-destructive/10 gap-2 h-8 px-3 rounded-full transition-all group"
-              onClick={onLogout}
+              className="gap-2 h-8 rounded-full border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary transition-all pr-4"
+              onClick={handleShare}
             >
-              <LogOut className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
-              <span className="text-xs font-medium">EXIT DASHBOARD</span>
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
+              <span className="text-[10px] font-bold uppercase tracking-wider">
+                {copied ? "Link Copied" : "Live Share"}
+              </span>
             </Button>
+
+            {isAuthenticated && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground hover:bg-destructive/10 gap-2 h-8 px-3 rounded-full transition-all group"
+                onClick={onLogout}
+              >
+                <LogOut className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                <span className="text-xs font-medium uppercase tracking-tight">Logout</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>
