@@ -18,7 +18,15 @@ export default function ArenaBuilderPage() {
         setIsSubmitted(false)
     }
 
-    const handleReset = () => {
+    const handleReset = async () => {
+        if (session) {
+            try {
+                const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+                await fetch(`http://${host}:7860/api/v1/aiccore/session/${session.id}/deactivate`, { method: "POST" })
+            } catch (err) {
+                console.error("Cleanup failed:", err)
+            }
+        }
         localStorage.removeItem("aiccore_session_id")
         localStorage.removeItem("aiccore_nickname")
         setSession(null)

@@ -19,9 +19,33 @@ from typing import Optional, Dict, Any, List
 
 # Import AICCORE backend
 from aiccore.backend.database import init_db, get_session
-from aiccore.backend.models import Session as AICSession
+from aiccore.backend.models import Session as AICSession, User, Station
 from aiccore.backend.middleware import AICCoreEventMiddleware
 from aiccore.backend.eraser import purge_langflow_workspace
+from aiccore.backend.broadcast import broadcast_manager
+import random
+import re
+
+# In-memory storage for unlock rate limiting (Google standard protection)
+# { ip: {"attempts": int, "locked_until": datetime} }
+FAILED_ATTEMPTS = {}
+LOCKOUT_DURATION_SECONDS = 300 # 5 minutes
+MAX_ATTEMPTS = 5
+
+def sanitize_string(s: str, length: int = 50) -> str:
+    # Remove special chars, allow alphanumeric and underscores
+    s = re.sub(r'[^\w\s-]', '', s)
+    return s[:length].strip()
+
+def generate_unlock_code():
+    return f"{random.randint(0, 9999):04d}"
+
+class UserCreateRequest(BaseModel):
+    username: str
+    nickname: str
+
+class AdminLoginRequest(BaseModel):
+    password: str
 
 class SessionStartRequest(BaseModel):
     nickname: str
@@ -115,13 +139,34 @@ def create_aiccore_app():
         from sqlalchemy import select
         
         client_ip = request.client.host
+        now = datetime.utcnow()
+        
+        # 0. Rate Limiting Check
+        if client_ip in FAILED_ATTEMPTS:
+            failed = FAILED_ATTEMPTS[client_ip]
+            if failed["locked_until"] and now < failed["locked_until"]:
+                wait_time = int((failed["locked_until"] - now).total_seconds())
+                raise HTTPException(status_code=429, detail=f"Too many failed attempts. Try again in {wait_time}s")
+        
         print(f"🔑 Unlock attempt for code {req.unlock_code} from IP {client_ip}")
         
         with Session(engine) as db_session:
             # 1. Find User by unlock_code
             stmt = select(User).where(User.unlock_code == req.unlock_code)
             user = db_session.execute(stmt).scalars().first()
+            
             if not user:
+                # Handle failure tracking
+                failed = FAILED_ATTEMPTS.get(client_ip, {"attempts": 0, "locked_until": None})
+                failed["attempts"] += 1
+                if failed["attempts"] >= MAX_ATTEMPTS:
+                    from datetime import timedelta
+                    failed["locked_until"] = now + timedelta(seconds=LOCKOUT_DURATION_SECONDS)
+                    FAILED_ATTEMPTS[client_ip] = failed
+                    raise HTTPException(status_code=429, detail="Maximum attempts reached. IP locked for 5 minutes.")
+                
+                FAILED_ATTEMPTS[client_ip] = failed
+                
                 # For Phase 1 testing, let's auto-create or reset a user if code is '0000'
                 if req.unlock_code == "0000":
                     from sqlalchemy import select
@@ -137,7 +182,11 @@ def create_aiccore_app():
                     db_session.commit()
                     db_session.refresh(user)
                 else:
-                    raise HTTPException(status_code=401, detail="Invalid unlock code")
+                    raise HTTPException(status_code=401, detail=f"Invalid unlock code. {MAX_ATTEMPTS - failed['attempts']} attempts remaining.")
+            
+            # Reset failures on success
+            if client_ip in FAILED_ATTEMPTS:
+                del FAILED_ATTEMPTS[client_ip]
             
             # Check for OTP expiration (15 minutes)
             if user.unlock_code_generated_at:
@@ -154,10 +203,20 @@ def create_aiccore_app():
                 station = db_session.execute(stmt).scalars().first()
             
             # 3. Create Session
+            station_id = station.id if station else (req.station_id or "STATION_LOCAL")
+            
+            # 3.5 Cleanup: Deactivate any other active sessions on THIS station
+            from sqlalchemy import update
+            db_session.execute(
+                update(AICSession)
+                .where(AICSession.station_id == station_id, AICSession.is_active == True)
+                .values(is_active=False, end_time=datetime.utcnow())
+            )
+
             new_session = AICSession(
                 user_id=user.id,
                 nickname=user.nickname,
-                station_id=station.id if station else (req.station_id or "STATION_LOCAL"),
+                station_id=station_id,
                 challenge_id=None
             )
             db_session.add(new_session)
@@ -174,6 +233,9 @@ def create_aiccore_app():
             
             db_session.commit()
             db_session.refresh(new_session)
+            
+            # 4.6 Broadcast Update: Tell dashboard to refresh leaderboard
+            await broadcast_manager.broadcast({"type": "LEADERBOARD_UPDATE", "data": {"session_id": str(new_session.id)}})
 
             # 5. Purge Langflow Workspace (The Eraser)
             try:
@@ -211,21 +273,22 @@ def create_aiccore_app():
                 raise HTTPException(status_code=404, detail="Session not found")
             return {"is_submitted": session.is_submitted}
 
-    @app.post("/api/v1/aiccore/session/start")
-    async def start_session(req: SessionStartRequest):
+    @app.post("/api/v1/aiccore/session/{session_id}/deactivate")
+    async def deactivate_session(session_id: UUID):
         from sqlalchemy.orm import Session
         from aiccore.backend.database import engine
+        from aiccore.backend.models import Session as AICSession
+        from sqlalchemy import update
         
         with Session(engine) as db_session:
-            new_session = AICSession(
-                nickname=req.nickname,
-                station_id=req.station_id,
-                challenge_id=req.challenge_id
-            )
-            db_session.add(new_session)
-            db_session.commit()
-            db_session.refresh(new_session)
-            return {"session_id": str(new_session.id), "nickname": new_session.nickname}
+            session = db_session.get(AICSession, session_id)
+            if session:
+                session.is_active = False
+                session.end_time = datetime.utcnow()
+                db_session.commit()
+                # Broadcast update
+                await broadcast_manager.broadcast({"type": "LEADERBOARD_UPDATE", "data": {"session_id": str(session_id)}})
+            return {"status": "deactivated"}
 
     @app.post("/api/v1/aiccore/submit")
     async def submit_flow(req: SubmissionRequest):
@@ -489,6 +552,94 @@ def create_aiccore_app():
                 "is_winner": s.is_winner,
                 "flow_snapshot": s.flow_snapshot
             } for s in results]
+
+    @app.post("/api/v1/aiccore/auth/admin-login")
+    async def admin_login(req: AdminLoginRequest):
+        # Professional standard: Simple admin pass for museum local LAN
+        # In a real cloud app, we'd use proper hashes
+        if req.password == "aiccore2024":
+            from fastapi.responses import JSONResponse
+            res = JSONResponse(content={"status": "authenticated", "role": "admin"})
+            res.set_cookie(
+                key="aiccore_admin", 
+                value="true", 
+                httponly=True, 
+                samesite="lax",
+                max_age=86400 # 1 day
+            )
+            return res
+        raise HTTPException(status_code=401, detail="Invalid admin password")
+
+    @app.get("/api/v1/aiccore/users")
+    async def list_users():
+        from sqlalchemy.orm import Session
+        from aiccore.backend.database import engine
+        from sqlalchemy import select
+        
+        with Session(engine) as db_session:
+            stmt = select(User).order_by(User.created_at.desc())
+            results = db_session.execute(stmt).scalars().all()
+            return results
+
+    @app.post("/api/v1/aiccore/users")
+    async def create_user(req: UserCreateRequest):
+        from sqlalchemy.orm import Session
+        from aiccore.backend.database import engine
+        
+        # Google Standard: Input Sanitization
+        clean_username = sanitize_string(req.username.lower().replace(" ", "_"), 30)
+        clean_nickname = sanitize_string(req.nickname, 30)
+        
+        if not clean_username or not clean_nickname:
+            raise HTTPException(status_code=400, detail="Invalid username or nickname content")
+
+        with Session(engine) as db_session:
+            # Check if username exists
+            from sqlalchemy import select
+            stmt = select(User).where(User.username == clean_username)
+            existing = db_session.execute(stmt).scalars().first()
+            if existing:
+                raise HTTPException(status_code=400, detail="Username already exists. Please choose another.")
+            
+            new_user = User(
+                username=clean_username,
+                nickname=clean_nickname,
+                unlock_code=generate_unlock_code(),
+                unlock_code_generated_at=datetime.utcnow()
+            )
+            db_session.add(new_user)
+            db_session.commit()
+            db_session.refresh(new_user)
+            
+            # Broadcast registry update
+            await broadcast_manager.broadcast({"type": "REGISTRY_UPDATE", "data": {"user_id": str(new_user.id)}})
+            
+            return new_user
+
+    @app.post("/api/v1/aiccore/users/{user_id}/regenerate")
+    async def regenerate_code(user_id: UUID):
+        from sqlalchemy.orm import Session
+        from aiccore.backend.database import engine
+        
+        with Session(engine) as db_session:
+            user = db_session.get(User, user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            # Generate a unique code
+            new_code = generate_unlock_code()
+            # Ensure uniqueness (simple loop for 4 digits)
+            for _ in range(10):
+                from sqlalchemy import select
+                stmt = select(User).where(User.unlock_code == new_code)
+                if not db_session.execute(stmt).scalars().first():
+                    break
+                new_code = generate_unlock_code()
+            
+            user.unlock_code = new_code
+            user.unlock_code_generated_at = datetime.utcnow()
+            db_session.commit()
+            return {"unlock_code": user.unlock_code, "generated_at": user.unlock_code_generated_at.isoformat()}
 
     @app.post("/api/v1/aiccore/sync/push")
     async def push_to_cloud():

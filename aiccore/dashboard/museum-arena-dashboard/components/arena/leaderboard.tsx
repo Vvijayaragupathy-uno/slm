@@ -99,30 +99,44 @@ function RankBadge({ rank }: { rank: number }) {
   )
 }
 
-export function Leaderboard({ onDataUpdate }: { onDataUpdate?: (count: number) => void }) {
+export function Leaderboard({
+  onDataUpdate,
+  refreshKey
+}: {
+  onDataUpdate?: (count: number) => void;
+  refreshKey?: number;
+}) {
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const fetchLeaderboard = async () => {
-      try {
-        const response = await fetch("http://localhost:7860/api/v1/aiccore/leaderboard")
-        const data = await response.json()
-        setStudents(data)
-        if (onDataUpdate) {
-          onDataUpdate(data.length)
-        }
-      } catch (error) {
-        console.error("Failed to fetch leaderboard:", error)
-      } finally {
-        setLoading(false)
+  const fetchLeaderboard = async () => {
+    try {
+      const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+      const response = await fetch(`http://${host}:7860/api/v1/aiccore/leaderboard`)
+      const data = await response.json()
+      setStudents(data)
+      if (onDataUpdate) {
+        onDataUpdate(data.length)
       }
+    } catch (error) {
+      console.error("Failed to fetch leaderboard:", error)
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchLeaderboard()
     const interval = setInterval(fetchLeaderboard, 5000)
     return () => clearInterval(interval)
   }, [])
+
+  // Listen for real-time refresh
+  useEffect(() => {
+    if (refreshKey !== undefined) {
+      fetchLeaderboard()
+    }
+  }, [refreshKey])
 
   const avgProgress = students.length > 0
     ? Math.round(students.reduce((acc, s) => acc + s.progress, 0) / students.length)

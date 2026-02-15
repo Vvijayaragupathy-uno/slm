@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutDashboard, ClipboardCheck } from "lucide-react"
+import { LayoutDashboard, ClipboardCheck, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface MobileTabsProps {
@@ -10,7 +10,8 @@ interface MobileTabsProps {
 
 const tabs = [
   { id: "live", label: "Live Board", icon: LayoutDashboard },
-  { id: "review", label: "Review Panel", icon: ClipboardCheck },
+  { id: "review", label: "Review", icon: ClipboardCheck },
+  { id: "contestants", label: "Registry", icon: Users },
 ]
 
 export function MobileTabs({ activeTab, onTabChange }: MobileTabsProps) {
