@@ -84,8 +84,11 @@ class Station(Base):
     
     id: Mapped[str] = mapped_column(String, primary_key=True) # e.g. "STATION_01"
     ip_address: Mapped[str] = mapped_column(String, unique=True)
-    status: Mapped[str] = mapped_column(String, default="available") # available, occupied, maintenance
+    status: Mapped[str] = mapped_column(String, default="available") # available, occupied, maintenance, offline
     current_session_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("session.id"), nullable=True)
+    last_heartbeat: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    cpu_load: Mapped[int] = mapped_column(Integer, default=0)
+    core_temp: Mapped[int] = mapped_column(Integer, default=0)
 
 class Achievement(Base):
     __tablename__ = "achievement"

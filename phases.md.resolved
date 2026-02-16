@@ -1,46 +1,20 @@
-# AICCORE Museum Agent Arena - Project Phases
+To sync 6 different laptops with a central website, the system uses a "Hub and Spoke" architecture. Here is exactly how they connect and stay in sync:
 
-This document outlines the high-level roadmap for building the AICCORE Museum Agent Arena. The goal is to create a gamified AI agent-building experience while keeping the underlying Langflow engine clean and upgradeable.
+1. The "Central Hub" (Your Server)
+One laptop (or a cloud server) acts as the Main Controller. It runs:
 
----
+The FastAPI Backend (port 7860): This is the "brain" that holds the database and handles WebSocket connections.
+The Dashboard Website (port 3000): This is what the public and admins see.
+2. The "Spokes" (6 Station Laptops)
+The other 6 laptops do not need to run the full code. They simply open a browser and go to your server's IP (e.g., http://192.168.1.100:3000).
 
-## Phase 1: Setup & Wrapper Integration
-**Goal**: Establish the AICCORE execution environment without modifying Langflow core.
-
-- **Wrapper Entry Point**: Create a custom backend that boots Langflow as a sub-component.
-- **Environment Isolation**: Set up Python paths and configurations to ensure AICCORE and Langflow logic remain separate.
-- **Success Criteria**: Langflow runs and is accessible via the AICCORE wrapper.
-
----
-
-## Phase 2: Telemetry & Event Capture
-**Goal**: Record every action a student takes while building their agent.
-
-- **Event Interception**: Implement middleware to capture node additions, edge connections, and parameter changes.
-- **Database Schema**: Set up a PostgreSQL database to store sessions and event logs.
-- **Event Replay Prototype**: Ensure captured data is sufficient to reconstruct a student's build sequence.
-
----
-
-## Phase 3: Submissions & Admin Review
-**Goal**: Allow students to submit their work and enable human evaluation.
-
-- **Submit Workflow**: Save a full snapshot of the student's flow upon submission.
-- **Admin Review Panel**: A backend interface for staff to browse and inspect submitted agents.
-- **Winner Marking**: Enable staff to manually select and publish daily/weekly winners.
-
----
-
-## Phase 4: Live Dashboard & Spectator Mode
-**Goal**: Create a visual "Arena" experience in the museum.
-
-- **Live Leaderboard**: A real-time display of high scores and recent winners.
-- **Active Stations**: Show which builder stations are currently in use.
-- **Real-time Updates**: Use WebSockets to push winner announcements to the dashboard instantly.
-
----
-
-## Architectural Constraints (Reminder)
-- **No Direct Edits**: Never modify files inside the `langflow/` directory.
-- **Separate Storage**: AICCORE data (sessions, events) must live in a separate database from Langflow data.
-- **Middleware Injection**: Use FastAPI middleware for all integration logic.
+3. How the Sync Works:
+Real-Time Data (WebSockets): Every laptop opens a persistent "pipe" (WebSocket) to the central server.
+When Laptop #1 saves a node, it sends data to the server.
+The server instantly broadcasts that change to the Mosaic Display on the central website.
+IP Identification: The Central Hub detects the IP address of each connecting laptop.
+If a laptop with IP 192.168.1.101 connects, the server looks at its station registry and says: "Aha! This is STATION_01."
+It then shows that station's CPU and temperature on the master dashboard.
+Session Persistence:
+As you build on a station laptop, the server saves your work into a database.
+If you close the laptop and move to another one, you can "Unlock" with your code, and the central server will sync your files to that new station

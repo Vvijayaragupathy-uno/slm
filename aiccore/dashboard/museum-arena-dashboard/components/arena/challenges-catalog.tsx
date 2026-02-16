@@ -119,7 +119,7 @@ export function ChallengesCatalog() {
                                     <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                                         <div className="flex items-center gap-1.5 text-primary">
                                             <Calendar className="h-3.5 w-3.5" />
-                                            <span>{c.start_time ? new Date(c.start_time).toLocaleDateString([], { month: 'short', day: 'numeric' }) : "TBA"}</span>
+                                            <span>{c.start_time ? new Date(c.start_time).toLocaleDateString([], { month: 'short', day: 'numeric' }) : "TBD"}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             <MapPin className="h-3.5 w-3.5 text-primary" />

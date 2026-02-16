@@ -129,7 +129,7 @@ export default function ChallengesPage() {
                                         <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
                                             <div className="flex items-center gap-2">
                                                 <Calendar className="h-3.5 w-3.5 text-primary" />
-                                                <span>{c.start_time ? new Date(c.start_time).toLocaleDateString([], { month: 'long', day: 'numeric' }) : "TBA"}</span>
+                                                <span>{c.start_time ? new Date(c.start_time).toLocaleDateString([], { month: 'long', day: 'numeric' }) : "TBD"}</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <Users className="h-3.5 w-3.5 text-primary" />

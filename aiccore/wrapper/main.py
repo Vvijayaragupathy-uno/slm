@@ -644,7 +644,9 @@ def create_aiccore_app():
                 duration_minutes=req.duration_minutes,
                 start_time=req.start_time,
                 location=req.location,
-                is_registration_open=req.is_registration_open
+                is_registration_open=req.is_registration_open,
+                starter_assets_url=req.starter_assets_url,
+                banner_image_url=req.banner_image_url
             )
             db_session.add(new_challenge)
             db_session.commit()
@@ -768,6 +770,52 @@ def create_aiccore_app():
                 "duration_minutes": active_challenge.duration_minutes if active_challenge else None,
                 "start_time": active_challenge.start_time.isoformat() if active_challenge and active_challenge.start_time else None
             }
+
+    @app.get("/api/v1/aiccore/stations")
+    async def list_all_stations():
+        with Session(engine) as db_session:
+            stmt = select(Station)
+            stations = db_session.execute(stmt).scalars().all()
+            
+            # Auto-offline check: If no heartbeat in 60s, mark as offline unless maintenance
+            now = datetime.now(timezone.utc)
+            results = []
+            for s in stations:
+                status = s.status
+                if s.status != "maintenance" and s.last_heartbeat:
+                    lh = s.last_heartbeat
+                    if lh.tzinfo is None: lh = lh.replace(tzinfo=timezone.utc)
+                    if (now - lh).total_seconds() > 300: # 5 Minute Timeout
+                        # If it was occupied, it's now available
+                        status = "available" if s.status == "occupied" else "offline"
+                
+                results.append({
+                    "id": s.id,
+                    "ip": s.ip_address,
+                    "status": status,
+                    "load": s.cpu_load,
+                    "temp": s.core_temp,
+                    "last_active": s.last_heartbeat.isoformat() if s.last_heartbeat else None
+                })
+            return results
+
+    @app.post("/api/v1/aiccore/stations/{station_id}/heartbeat")
+    async def station_heartbeat(station_id: str, payload: Dict[str, Any]):
+        with Session(engine) as db_session:
+            s = db_session.get(Station, station_id)
+            if not s:
+                raise HTTPException(status_code=404, detail="Station not found")
+            
+            s.last_heartbeat = datetime.now(timezone.utc)
+            s.cpu_load = payload.get("load", s.cpu_load)
+            s.core_temp = payload.get("temp", s.core_temp)
+            
+            # If it was offline, bring it back
+            if s.status == "offline":
+                s.status = "available"
+                
+            db_session.commit()
+            return {"status": "ok"}
 
     @app.get("/api/v1/aiccore/achievements")
     async def list_achievements():

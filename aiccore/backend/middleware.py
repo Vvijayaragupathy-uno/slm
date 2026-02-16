@@ -46,6 +46,9 @@ class AICCoreEventMiddleware(BaseHTTPMiddleware):
         except (ValueError, TypeError):
             return await call_next(request)
 
+        # Proactively update station heartbeat on every valid interaction
+        self._update_station_heartbeat(session_id)
+
         # Capture Workspace Changes (Flows, Folders, and Variables)
         # We intercept Creations (POST), Updates (PATCH), and Deletions (DELETE)
         # to ensure the persistent profile always has a perfect snapshot.
@@ -238,6 +241,26 @@ class AICCoreEventMiddleware(BaseHTTPMiddleware):
         
         self._log_event(session_id, f"{category}_completed", metadata)
         return response
+
+    def _update_station_heartbeat(self, session_id: UUID):
+        """Updates the station's last heartbeat and ensures status is consistent."""
+        try:
+            with Session(engine) as db_session:
+                from .models import Session as AICSession, Station
+                # Find the session and its station
+                stmt = select(AICSession).where(AICSession.id == session_id)
+                session_obj = db_session.execute(stmt).scalars().first()
+                if session_obj and session_obj.station_id:
+                    # Update station telemetry
+                    station = db_session.get(Station, session_obj.station_id)
+                    if station:
+                        station.last_heartbeat = datetime.now(timezone.utc)
+                        # If station was offline/available, it's definitely occupied now
+                        if station.status in ["available", "offline"]:
+                            station.status = "occupied"
+                        db_session.commit()
+        except Exception as e:
+            print(f"⚠️ Heartbeat Update Error: {e}")
 
     def _log_event(self, session_id: UUID, event_type: str, payload: dict):
         with Session(engine) as db_session:

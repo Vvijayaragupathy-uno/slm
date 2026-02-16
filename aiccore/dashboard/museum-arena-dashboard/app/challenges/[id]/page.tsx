@@ -109,7 +109,7 @@ export default function ChallengeDetailsPage() {
                         <div className="flex flex-wrap gap-6 text-sm font-bold uppercase tracking-widest text-muted-foreground">
                             <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-primary" />
-                                <span>{challenge.start_time ? new Date(challenge.start_time).toLocaleString([], { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : "TBA"}</span>
+                                <span>{challenge.start_time ? new Date(challenge.start_time).toLocaleString([], { weekday: 'long', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : "TBD"}</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <MapPin className="h-4 w-4 text-primary" />

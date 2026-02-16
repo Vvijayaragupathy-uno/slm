@@ -410,7 +410,6 @@ export function SystemConfig() {
                                             setChallengeForm({ ...challengeForm, startTime: e.target.value })
                                         }}
                                         className="bg-background/50 border-white/10 h-9 text-xs"
-                                        required
                                     />
                                 </div>
                                 <div className="space-y-1.5 flex flex-col">
