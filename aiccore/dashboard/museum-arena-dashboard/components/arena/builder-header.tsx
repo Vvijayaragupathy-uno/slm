@@ -2,7 +2,7 @@ import { Activity, Radio, Shield, Zap, LogOut, Share2, Check } from "lucide-reac
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
 
-export function ArenaHeader({
+export function BuilderHeader({
   stationCount = 8,
   onLogout,
   isAuthenticated = false
@@ -34,12 +34,12 @@ export function ArenaHeader({
                   AICCORE
                 </span>
                 <span className="text-muted-foreground text-xs font-light">|</span>
-                <span className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
-                  Arena Spectator
+                <span className="text-xs font-bold tracking-[0.2em] text-muted-foreground uppercase">
+                  AICCORE Agent Builder
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-muted-foreground/60 tracking-wider uppercase">
-                {isAuthenticated ? "Administrative Control" : "Public View Deck"}
+              <span className="text-[10px] font-mono text-muted-foreground/60 tracking-wider uppercase font-bold">
+                {isAuthenticated ? "Administrative Authority" : "Mission Overview Mode"}
               </span>
             </div>
           </div>

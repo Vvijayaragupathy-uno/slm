@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'AICCORE | Museum Agent Arena',
-  description: 'Live gamified command center for the AICCORE Museum Agent Arena',
+  title: 'AICCORE | Agent Builder Console',
+  description: 'Live gamified command center for the AICCORE Agent Builder Platform',
 }
 
 export const viewport: Viewport = {

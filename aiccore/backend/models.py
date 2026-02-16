@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from uuid import UUID, uuid4
 from sqlalchemy import Column, String, DateTime, Boolean, JSON, ForeignKey, Integer, Float
@@ -16,8 +16,8 @@ class Session(Base):
     nickname: Mapped[str] = mapped_column(String)
     station_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     challenge_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("challenge.id"), nullable=True)
-    start_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    end_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    end_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_submitted: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -27,7 +27,7 @@ class Event(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[UUID] = mapped_column(ForeignKey("session.id"))
     sequence_number: Mapped[int] = mapped_column(Integer)
-    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     event_type: Mapped[str] = mapped_column(String)
     payload: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
 
@@ -36,7 +36,7 @@ class Submission(Base):
     
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     session_id: Mapped[UUID] = mapped_column(ForeignKey("session.id"))
-    submitted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     flow_snapshot: Mapped[Dict[str, Any]] = mapped_column(JSON)
     score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     is_winner: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -49,9 +49,9 @@ class User(Base):
     nickname: Mapped[str] = mapped_column(String)
     password: Mapped[Optional[str]] = mapped_column(String, nullable=True) # Simple password for returning users
     unlock_code: Mapped[str] = mapped_column(String, unique=True, index=True) # 4-digit code
-    unlock_code_generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    unlock_code_generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     honors: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict) # To store earned achievements
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 class Challenge(Base):
     __tablename__ = "challenge"
@@ -61,7 +61,23 @@ class Challenge(Base):
     description: Mapped[str] = mapped_column(String)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     complexity_level: Mapped[str] = mapped_column(String, default="Beginner")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    max_participants: Mapped[int] = mapped_column(Integer, default=10)
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    start_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True) # Upcoming Event Date/Time
+    location: Mapped[str] = mapped_column(String, default="Main Arena") # Physical or Virtual location
+    is_registration_open: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_finalized: Mapped[bool] = mapped_column(Boolean, default=False) # Ceremony mode status
+    starter_assets_url: Mapped[Optional[str]] = mapped_column(String, nullable=True) # PDF/Docs link
+    banner_image_url: Mapped[Optional[str]] = mapped_column(String, nullable=True) # UI enhancement
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+class ChallengeRegistration(Base):
+    __tablename__ = "challenge_registration"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user.id"))
+    challenge_id: Mapped[UUID] = mapped_column(ForeignKey("challenge.id"))
+    registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 class Station(Base):
     __tablename__ = "station"

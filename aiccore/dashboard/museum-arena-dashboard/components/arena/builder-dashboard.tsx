@@ -1,19 +1,21 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ArenaHeader } from "./arena-header"
-import { ArenaSidebar } from "./arena-sidebar"
+import { BuilderHeader } from "./builder-header"
+import { BuilderSidebar } from "./builder-sidebar"
 import { MobileTabs } from "./mobile-tabs"
 import { Leaderboard } from "./leaderboard"
 import { ReviewPanel } from "./review-panel"
-import { MosaicArena } from "./mosaic-arena"
+import { MosaicDisplay } from "./mosaic-display"
 import { UserRegistry } from "./user-registry"
-import { ArenaConfig } from "./arena-config"
+import { SystemConfig } from "./system-config"
 import { StationStatus } from "./station-status"
 import { LoginPage } from "./login-page"
+import { LiveChallenges } from "./live-challenges"
+import { ChallengesCatalog } from "./challenges-catalog"
 import { cn } from "@/lib/utils"
 
-export function ArenaDashboard() {
+export function BuilderDashboard() {
   const [activeTab, setActiveTab] = useState("live")
   const [stationCount, setStationCount] = useState(8)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
@@ -49,7 +51,8 @@ export function ArenaDashboard() {
   }, [isAuthenticated])
 
   const handleLogin = async (password: string) => {
-    const response = await fetch("http://localhost:7860/api/v1/aiccore/auth/admin-login", {
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
+    const response = await fetch(`http://${host}:7860/api/v1/aiccore/auth/admin-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password }),
@@ -81,7 +84,7 @@ export function ArenaDashboard() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      <ArenaHeader
+      <BuilderHeader
         stationCount={stationCount}
         onLogout={handleLogout}
         isAuthenticated={!!isAuthenticated}
@@ -89,7 +92,7 @@ export function ArenaDashboard() {
       <MobileTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
       <div className="flex flex-1 overflow-hidden">
-        <ArenaSidebar
+        <BuilderSidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}
           isAuthenticated={!!isAuthenticated}
@@ -98,31 +101,45 @@ export function ArenaDashboard() {
         <main className="flex-1 overflow-auto bg-background/50 backdrop-blur-3xl">
           <div className="p-6">
             {/* View title */}
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-6 flex items-center justify-between border-b border-white/5 pb-6">
               <div className="flex flex-col gap-1">
-                <h1 className="text-lg font-bold tracking-wide text-foreground">
+                <h1 className="text-xl font-black tracking-tighter text-foreground uppercase italic">
                   {showLogin ? "Administrator Authentication" :
-                    activeTab === "live" ? "Live Spectator Leaderboard" :
-                      activeTab === "mosaic" ? "Mosaic Workflow Arena" :
-                        activeTab === "contestants" ? "Contestant Registry" :
-                          activeTab === "settings" ? "Arena Configuration" :
-                            activeTab === "stations" ? "Station Hardware Status" :
-                              "Admin Review Panel"}
+                    activeTab === "live" ? "Builder Leaderboard" :
+                      activeTab === "challenges" ? "Mission Catalog" :
+                        activeTab === "mosaic" ? "Visual Display" :
+                          activeTab === "contestants" ? "Contestant Monitor" :
+                            activeTab === "settings" ? "System Config" :
+                              activeTab === "stations" ? "Station Status" :
+                                "Deployment Review"}
                 </h1>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                   {showLogin ? "Secure access required for management utilities" :
                     activeTab === "live"
-                      ? "Real-time progress of all contestants in the arena"
-                      : activeTab === "mosaic"
-                        ? "Live view of all active builder workflows"
-                        : activeTab === "contestants"
-                          ? "Manage builder access codes and session status"
-                          : activeTab === "settings"
-                            ? "Global arena rules, challenges, and system honors"
-                            : activeTab === "stations"
-                              ? "Telemetry and health monitoring for local hardware"
-                              : "Review and approve submitted agent flows"}
+                      ? "Real-time engagement telemetry for active units"
+                      : activeTab === "challenges"
+                        ? "Active and upcoming mission deployments for builders"
+                        : activeTab === "mosaic"
+                          ? "Multi-stream visualization of builder workflows"
+                          : activeTab === "contestants"
+                            ? "Real-time telemetry and status monitoring for all builders"
+                            : activeTab === "settings"
+                              ? "Core logic, mission rules, and system configurations"
+                              : activeTab === "stations"
+                                ? "Real-time health monitoring for local builder stations"
+                                : "Post-deployment evaluation and honor awarding platform"}
                 </p>
+              </div>
+
+              {/* Google Engineer Suggestion: System Pulse */}
+              <div className="hidden md:flex items-center gap-4 px-4 py-2 rounded-xl bg-emerald-500/5 ring-1 ring-emerald-500/20">
+                <div className="flex flex-col items-end">
+                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">System Pulse</span>
+                  <span className="text-[10px] font-mono text-foreground tracking-tighter">OPTIMAL - 99.8%</span>
+                </div>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-4 w-1 bg-emerald-500/40 rounded-full animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />)}
+                </div>
               </div>
             </div>
 
@@ -137,14 +154,20 @@ export function ArenaDashboard() {
               {showLogin ? (
                 <LoginPage onLogin={handleLogin} />
               ) : (
-                <>
-                  {activeTab === "live" ? <Leaderboard onDataUpdate={setStationCount} refreshKey={refreshKey} /> :
-                    activeTab === "mosaic" ? <MosaicArena /> :
-                      activeTab === "contestants" ? <UserRegistry refreshKey={refreshKey} /> :
-                        activeTab === "settings" ? <ArenaConfig /> :
-                          activeTab === "stations" ? <StationStatus /> :
-                            <ReviewPanel />}
-                </>
+                <div className="pb-10">
+                  {activeTab === "live" ? (
+                    <div className="flex flex-col gap-8">
+                      <LiveChallenges />
+                      <Leaderboard onDataUpdate={setStationCount} refreshKey={refreshKey} />
+                    </div>
+                  ) :
+                    activeTab === "challenges" ? <ChallengesCatalog /> :
+                      activeTab === "mosaic" ? <MosaicDisplay /> :
+                        activeTab === "contestants" ? <UserRegistry refreshKey={refreshKey} /> :
+                          activeTab === "settings" ? <SystemConfig /> :
+                            activeTab === "stations" ? <StationStatus /> :
+                              <ReviewPanel />}
+                </div>
               )}
             </div>
           </div>

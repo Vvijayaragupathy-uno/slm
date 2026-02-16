@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Users, RefreshCw, Plus, User as UserIcon, Calendar, Hash, Key } from "lucide-react"
+import { Users, RefreshCw, Plus, User as UserIcon, Calendar, Hash, Key, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -103,6 +103,21 @@ export function UserRegistry({ refreshKey }: { refreshKey?: number }) {
             }
         } catch (error) {
             console.error("Failed to create user:", error)
+        }
+    }
+
+    const handleDeleteUser = async (userId: string) => {
+        if (!confirm("Are you sure you want to remove this contestant? This will also end their active sessions.")) return
+        try {
+            const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+            const response = await fetch(`http://${host}:7860/api/v1/aiccore/users/${userId}`, {
+                method: "DELETE",
+            })
+            if (response.ok) {
+                await fetchUsers()
+            }
+        } catch (error) {
+            console.error("Failed to delete user:", error)
         }
     }
 
@@ -212,16 +227,27 @@ export function UserRegistry({ refreshKey }: { refreshKey?: number }) {
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="gap-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                                        onClick={() => handleRegenerate(user.id)}
-                                        disabled={isRegenerating === user.id}
-                                    >
-                                        <RefreshCw className={`h-3.5 w-3.5 ${isRegenerating === user.id ? 'animate-spin' : ''}`} />
-                                        Regenerate Code
-                                    </Button>
+                                    <div className="flex justify-end gap-2">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onClick={() => handleRegenerate(user.id)}
+                                            disabled={isRegenerating === user.id}
+                                            title="Regenerate Unlock Code"
+                                        >
+                                            <RefreshCw className={`h-3.5 w-3.5 ${isRegenerating === user.id ? 'animate-spin' : ''}`} />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
+                                            onClick={() => handleDeleteUser(user.id)}
+                                            title="Delete Contestant"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ))}

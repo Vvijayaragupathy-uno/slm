@@ -47,7 +47,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                             AICCORE
                         </h1>
                         <p className="text-xs font-mono font-medium tracking-[0.3em] text-muted-foreground/60 uppercase mt-1">
-                            Museum Agent Arena
+                            Agent Builder Platform
                         </p>
                     </div>
                 </div>
@@ -59,7 +59,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                             Command Center Access
                         </CardTitle>
                         <CardDescription className="text-sm text-muted-foreground">
-                            Enter the administrator passcode to enter the Arena control deck.
+                            Enter the administrator passcode to enter the Builder Panel.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>

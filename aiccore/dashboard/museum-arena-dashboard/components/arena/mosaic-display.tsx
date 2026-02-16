@@ -16,7 +16,7 @@ interface MosaicSession {
     lastUpdate: number
 }
 
-export function MosaicArena() {
+export function MosaicDisplay() {
     const [sessions, setSessions] = useState<Record<string, MosaicSession>>({})
     const [activeIds, setActiveIds] = useState<string[]>([])
 
@@ -169,7 +169,7 @@ export function MosaicArena() {
         return (
             <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground opacity-50">
                 <Monitor className="h-12 w-12 stroke-[1.5]" />
-                <p className="text-sm font-medium uppercase tracking-[0.2em]">Awaiting Arena Activity</p>
+                <p className="text-sm font-medium uppercase tracking-[0.2em]">Awaiting Builder Activity</p>
             </div>
         )
     }

@@ -1,7 +1,7 @@
 import asyncio
 import httpx
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from .database import engine
 from .models import Session as AICSession, Submission, Event
@@ -56,12 +56,12 @@ async def get_arena_state():
                 "station": s.station_id or "0",
                 "progress": progress,
                 "status": status,
-                "score": submission.score if submission else 0,
-                "is_winner": submission.is_winner if submission else False
+                "score": (submission.score or 0) if submission else 0,
+                "is_winner": (submission.is_winner or False) if submission else False
             })
 
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "local_station_id": os.getenv("AICCORE_STATION_ID", "LOCAL_MUSEUM_01"),
             "leaderboard": leaderboard,
             "active_count": len(leaderboard)

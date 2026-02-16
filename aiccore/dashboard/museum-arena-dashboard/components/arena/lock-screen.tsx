@@ -163,7 +163,7 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
                 <div className="flex flex-col gap-2">
                     <h1 className="text-4xl font-black tracking-tighter text-foreground uppercase italic leading-none">
                         {view === "unlock" ? "Station Access" :
-                            view === "register" ? "Join the Arena" : "Builder Sign-in"}
+                            view === "register" ? "Join the Mission" : "Builder Sign-in"}
                     </h1>
                     <p className="text-sm text-muted-foreground font-medium px-4">
                         {view === "unlock" ? "Enter your 4-digit code to initialize the building deck." :
@@ -383,7 +383,7 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
 
                 <div className="flex items-center gap-1.5 opacity-30 mt-2">
                     <div className="h-1 w-1 rounded-full bg-primary animate-pulse" />
-                    <p className="text-[9px] text-muted-foreground uppercase tracking-[0.3em] font-mono">STATION_LOCAL • ARENA_V1</p>
+                    <p className="text-[9px] text-muted-foreground uppercase tracking-[0.3em] font-mono">STATION_LOCAL • SYSTEM_V1</p>
                 </div>
             </div>
 

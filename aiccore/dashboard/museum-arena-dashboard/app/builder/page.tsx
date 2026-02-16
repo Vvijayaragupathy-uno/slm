@@ -2,14 +2,20 @@
 
 import { useState, useEffect } from "react"
 import { LockScreen } from "@/components/arena/lock-screen"
-import { Shield, Rocket, RefreshCw, Trophy, CheckCircle2, Zap, BarChart3, Medal } from "lucide-react"
+import { Shield, Rocket, RefreshCw, Trophy, CheckCircle2, Zap, BarChart3, Medal, Megaphone, X, FileText, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export default function ArenaBuilderPage() {
+export default function BuilderPage() {
     const [session, setSession] = useState<{ id: string; nickname: string } | null>(null)
     const [stats, setStats] = useState<{ flows: number; achievements: number } | null>(null)
     const [iframeLoaded, setIframeLoaded] = useState(false)
     const [isSubmitted, setIsSubmitted] = useState(false)
+    const [broadcast, setBroadcast] = useState<string | null>(null)
+    const [challengeAssets, setChallengeAssets] = useState<string | null>(null)
+    const [isSystemLocked, setIsSystemLocked] = useState(false)
+    const [timeLeft, setTimeLeft] = useState<number | null>(null)
+    const [challengeInfo, setChallengeInfo] = useState<{ start_time: string; duration: number } | null>(null)
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     // Handle unlock from LockScreen
     const handleUnlock = (sessionId: string, nickname: string, userStats?: any) => {
@@ -95,53 +101,148 @@ export default function ArenaBuilderPage() {
         }
     }, [])
 
+    // WebSocket Listener for Broadcasts & Ceremony
+    useEffect(() => {
+        const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
+        const ws = new WebSocket(`ws://${host}:7860/api/v1/aiccore/ws`)
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data)
+
+                if (data.type === "ADMIN_BROADCAST") {
+                    setBroadcast(data.message)
+                    // Auto-hide broadcast after 10 seconds
+                    setTimeout(() => setBroadcast(null), 10000)
+                }
+
+                if (data.type === "SYSTEM_FINALIZE") {
+                    setIsSystemLocked(true)
+                }
+            } catch (err) {
+                console.error("WS error:", err)
+            }
+        }
+
+        return () => ws.close()
+    }, [])
+
+    // Fetch challenge assets URL
+    useEffect(() => {
+        if (!session) return
+        const fetchChallenge = async () => {
+            const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
+            try {
+                const res = await fetch(`http://${host}:7860/api/v1/aiccore/system/status`)
+                const status = await res.json()
+                if (status.starter_assets_url) {
+                    setChallengeAssets(status.starter_assets_url)
+                }
+                if (status.start_time && status.duration_minutes) {
+                    setChallengeInfo({
+                        start_time: status.start_time,
+                        duration: status.duration_minutes
+                    })
+                }
+            } catch (e) { }
+        }
+        fetchChallenge()
+    }, [session])
+
+    // Timer Logic
+    useEffect(() => {
+        if (!challengeInfo) return
+
+        const timer = setInterval(() => {
+            const start = new Date(challengeInfo.start_time).getTime()
+            const end = start + (challengeInfo.duration * 60 * 1000)
+            const now = Date.now()
+            const remaining = Math.max(0, Math.floor((end - now) / 1000))
+
+            setTimeLeft(remaining)
+
+            if (remaining === 0 && !isSubmitted && !isSystemLocked) {
+                console.log("Timer expired. Auto-submitting...")
+                handleSubmit()
+                clearInterval(timer)
+            }
+        }, 1000)
+
+        return () => clearInterval(timer)
+    }, [challengeInfo, isSubmitted, isSystemLocked])
+
+    const handleSubmit = async () => {
+        if (!session || isSubmitting || isSubmitted) return
+        setIsSubmitting(true)
+        try {
+            const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
+            const res = await fetch(`http://${host}:7860/api/v1/aiccore/session/${session.id}/submit`, {
+                method: "POST"
+            })
+            if (res.ok) {
+                setIsSubmitted(true)
+            }
+        } catch (e) {
+            console.error("Submission failed:", e)
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60)
+        const secs = seconds % 60
+        return `${mins}:${secs.toString().padStart(2, '0')}`
+    }
+
     if (!session) {
         return <LockScreen onUnlock={handleUnlock} />
     }
 
-    if (isSubmitted) {
+
+
+    if (isSubmitted || isSystemLocked) {
         return (
-            <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background overflow-hidden">
+            <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0f111c] overflow-hidden">
                 <div className="absolute inset-0 bg-primary/5 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
 
-                <div className="relative flex flex-col items-center gap-8 text-center p-8 max-w-lg">
-                    <div className="relative">
-                        <div className="absolute -inset-8 rounded-full bg-amber-400/20 blur-3xl animate-pulse" />
-                        <div className="relative flex h-32 w-32 items-center justify-center rounded-3xl bg-amber-400/10 ring-1 ring-amber-400/30 shadow-2xl shadow-amber-400/20">
-                            <Trophy className="h-16 w-16 text-amber-400" />
+                <div className="relative flex flex-col items-center gap-8 text-center p-8 max-w-lg z-20">
+                    <div className="relative group">
+                        <div className="absolute -inset-8 rounded-full bg-primary/20 blur-3xl opacity-50 group-hover:opacity-100 transition-opacity" />
+                        <div className="relative flex h-32 w-32 items-center justify-center rounded-3xl bg-black ring-1 ring-white/10 shadow-2xl">
+                            {isSystemLocked ? <Trophy className="h-16 w-16 text-amber-400 animate-bounce" /> : <Trophy className="h-16 w-16 text-amber-400" />}
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-3">
-                        <h1 className="text-4xl font-black tracking-tighter text-foreground uppercase italic">Mission Complete</h1>
-                        <p className="text-lg font-medium text-muted-foreground">
-                            Agent successfully deployed to the AICCORE Arena!
+                    <div className="space-y-3">
+                        <h1 className="text-5xl font-black tracking-tighter uppercase italic leading-none">
+                            {isSystemLocked ? "Station Locked" : "Mission Complete"}
+                        </h1>
+                        <p className="text-muted-foreground font-medium leading-relaxed">
+                            {isSystemLocked ? "The mission window has closed. All stations are locked for evaluation." : "Agent successfully deployed to the AICCORE Registry!"}
                         </p>
-                        <div className="mt-4 flex flex-col gap-2 rounded-2xl bg-secondary/50 p-6 ring-1 ring-border">
-                            <div className="flex items-center justify-between gap-4">
-                                <span className="text-sm text-muted-foreground uppercase font-bold tracking-widest">Builder</span>
-                                <span className="text-lg font-black text-foreground">{session.nickname}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-4 border-t border-border pt-2 mt-2">
-                                <span className="text-sm text-muted-foreground uppercase font-bold tracking-widest">Status</span>
-                                <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    <span>SUBMITTED</span>
-                                </div>
+                    </div>
+
+                    <div className="w-full mt-4 flex flex-col gap-2 rounded-2xl bg-secondary/50 p-6 ring-1 ring-border">
+                        <div className="flex items-center justify-between gap-4">
+                            <span className="text-sm text-muted-foreground uppercase font-bold tracking-widest">Builder</span>
+                            <span className="text-lg font-black text-foreground">{session.nickname}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 border-t border-border pt-2 mt-2">
+                            <span className="text-sm text-muted-foreground uppercase font-bold tracking-widest">Status</span>
+                            <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                                <CheckCircle2 className="h-4 w-4" />
+                                <span>{isSystemLocked ? "FINISHED" : "SUBMITTED"}</span>
                             </div>
                         </div>
                     </div>
 
                     <button
                         onClick={handleReset}
-                        className="group relative flex h-16 w-full items-center justify-center rounded-2xl bg-primary font-black text-primary-foreground transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-primary/20 uppercase tracking-widest"
+                        className="group relative flex h-16 w-full items-center justify-center rounded-2xl bg-primary font-black text-primary-foreground transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl shadow-primary/20 uppercase tracking-widest mt-4"
                     >
-                        Finish & logout
+                        Return to Start
                     </button>
-
-                    <p className="text-[10px] font-mono text-muted-foreground/60 uppercase tracking-widest">
-                        Your work will appear on the live dashboard shortly.
-                    </p>
                 </div>
             </div>
         )
@@ -149,6 +250,24 @@ export default function ArenaBuilderPage() {
 
     return (
         <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
+            {/* Live Broadcast Overlay */}
+            {broadcast && (
+                <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] w-full max-w-xl animate-in fade-in slide-in-from-top-8 duration-500">
+                    <div className="bg-sky-500 text-white p-4 rounded-2xl shadow-2xl flex items-center gap-4 border border-white/20 ring-4 ring-sky-500/20">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20">
+                            <Megaphone className="h-6 w-6 animate-bounce" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Message from System Command</span>
+                            <span className="text-sm font-bold">{broadcast}</span>
+                        </div>
+                        <button onClick={() => setBroadcast(null)} className="ml-auto p-1 hover:bg-white/10 rounded">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Mini Header for the builder */}
             <header className="flex h-12 items-center justify-between border-b border-border bg-card px-4">
                 <div className="flex items-center gap-3">
@@ -156,14 +275,26 @@ export default function ArenaBuilderPage() {
                         <Shield className="h-4 w-4 text-primary" />
                     </div>
                     <div className="flex items-baseline gap-2">
-                        <span className="text-xs font-bold tracking-tight text-foreground">AICCORE Arena</span>
+                        <span className="text-xs font-bold tracking-tight text-foreground">AICCORE Agent Builder</span>
                         <span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">Builder Mode</span>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-4">
+                    {challengeAssets && (
+                        <a
+                            href={challengeAssets}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 rounded-md bg-emerald-500/10 px-3 py-1 text-[10px] font-black text-emerald-400 ring-1 ring-emerald-500/30 hover:bg-emerald-500/20 transition-all uppercase tracking-widest"
+                        >
+                            <FileText className="h-3 w-3" />
+                            Download Mission Directive
+                        </a>
+                    )}
+
                     {stats && (
-                        <div className="flex items-center gap-3 border-r border-border pr-4 mr-2">
+                        <div className="flex items-center gap-3 border-r border-border pr-4">
                             <div className="flex items-center gap-1.5 opacity-70">
                                 <BarChart3 className="h-3 w-3 text-primary" />
                                 <span className="text-[10px] font-bold font-mono tracking-tighter uppercase">{stats.flows} FLOWS</span>
@@ -174,6 +305,30 @@ export default function ArenaBuilderPage() {
                             </div>
                         </div>
                     )}
+
+                    {timeLeft !== null && (
+                        <div className={cn(
+                            "flex items-center gap-2 px-3 py-1 rounded-md border text-[10px] font-black tracking-widest uppercase",
+                            timeLeft < 300 ? "bg-rose-500/10 text-rose-500 border-rose-500/20 animate-pulse" : "bg-primary/5 text-primary border-primary/10"
+                        )}>
+                            <Clock className="h-3 w-3" />
+                            <span>Mission Ends: {formatTime(timeLeft)}</span>
+                        </div>
+                    )}
+
+                    <div className="h-4 w-[1px] bg-border" />
+
+                    <button
+                        onClick={handleSubmit}
+                        disabled={isSubmitting || isSubmitted || isSystemLocked}
+                        className={cn(
+                            "flex items-center gap-2 rounded-md px-4 py-1.5 text-[10px] font-black uppercase tracking-widest shadow-lg transition-all active:scale-95",
+                            isSubmitting ? "bg-muted cursor-not-allowed" : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
+                        )}
+                    >
+                        <Rocket className={cn("h-3 w-3", isSubmitting && "animate-spin")} />
+                        {isSubmitting ? "Deploying..." : "Submit Mission"}
+                    </button>
 
                     <div className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 ring-1 ring-primary/20">
                         <div className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />

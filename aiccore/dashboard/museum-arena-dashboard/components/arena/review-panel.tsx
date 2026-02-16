@@ -9,11 +9,20 @@ import {
   Eye,
   History,
   Play,
+  Download,
+  Target
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { FlowPreviewCard } from "./flow-preview-card"
 import { Slider } from "@/components/ui/slider"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 
 interface Achievement {
@@ -27,6 +36,7 @@ interface Submission {
   session_id: string
   user_id: string | null
   nickname: string
+  challenge_name: string
   station: string
   submittedAt: string
   flowName: string
@@ -53,6 +63,7 @@ function SubmissionCard({
   const [history, setHistory] = useState<any[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [isHistoryMode, setIsHistoryMode] = useState(false)
+  const [isViewOpen, setIsViewOpen] = useState(false)
   const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
 
   const currentNodes = useMemo(() => {
@@ -85,7 +96,6 @@ function SubmissionCard({
     try {
       const res = await fetch(`http://${host}:7860/api/v1/aiccore/session/${sub.session_id}/events`)
       const events = await res.json()
-      // Filter for flow_saved events that have snapshots
       const snapshots = events.filter((e: any) => (e.event_type === "flow_saved" || e.event_type === "submitted") && e.payload?.snapshot)
       setHistory(snapshots)
       setHistoryIndex(snapshots.length - 1)
@@ -93,6 +103,10 @@ function SubmissionCard({
     } catch (err) {
       console.error("Failed to fetch history", err)
     }
+  }
+
+  const handleDownload = () => {
+    window.location.href = `http://${host}:7860/api/v1/aiccore/submissions/${sub.id}/download`
   }
 
   return (
@@ -123,11 +137,16 @@ function SubmissionCard({
             <User className="h-4 w-4" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold text-foreground">{sub.nickname}</span>
             <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground leading-none">{sub.nickname}</span>
+              <Badge variant="outline" className="text-[8px] font-black uppercase tracking-tighter py-0 px-1 border-primary/20 text-primary/70">
+                {sub.id.slice(0, 8)}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
               <div className="flex items-center gap-1">
                 <Monitor className="h-3 w-3 text-muted-foreground/60" />
-                <span className="text-[10px] font-mono text-muted-foreground">Station #{sub.station}</span>
+                <span className="text-[10px] font-mono text-muted-foreground">#{sub.station}</span>
               </div>
               <span className="text-muted-foreground/30">|</span>
               <div className="flex items-center gap-1">
@@ -142,11 +161,52 @@ function SubmissionCard({
           <Button
             variant="ghost"
             size="icon"
+            onClick={handleDownload}
+            className="h-7 w-7 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10"
+            title="Download Workflow JSON"
+          >
+            <Download className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={fetchHistory}
             className={cn("h-7 w-7 rounded-md", isHistoryMode ? "text-primary bg-primary/10" : "text-muted-foreground")}
+            title="View History Scroll"
           >
             <History className="h-3.5 w-3.5" />
           </Button>
+
+          <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-md text-muted-foreground hover:text-emerald-400 hover:bg-emerald-400/10"
+                title="Launch in Builder"
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0 overflow-hidden bg-black border-white/10">
+              <DialogHeader className="p-4 border-b border-white/5 bg-zinc-950 flex flex-row items-center justify-between">
+                <div>
+                  <DialogTitle className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                    <Monitor className="h-4 w-4" />
+                    Builder Inspection: {sub.nickname}
+                  </DialogTitle>
+                </div>
+              </DialogHeader>
+              <div className="flex-1 bg-zinc-900 overflow-hidden relative">
+                <iframe
+                  src={`http://${host}:5173/?session_id=${sub.session_id}`}
+                  className="w-full h-full border-0"
+                  title="Builder Inspection"
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+
           {sub.approved && (
             <Badge className={cn(
               "gap-1 rounded-md border-0 px-2 py-0.5 text-[10px] font-semibold tracking-wider ring-1",
@@ -160,13 +220,21 @@ function SubmissionCard({
         </div>
       </div>
 
+      {/* Mission Label */}
+      <div className="flex items-center gap-1.5 px-1">
+        <Target className="h-3 w-3 text-rose-400" />
+        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">
+          Mission Target: <span className="text-foreground">{sub.challenge_name}</span>
+        </span>
+      </div>
+
       {/* Flow Name & Description */}
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <Sparkles className="h-3.5 w-3.5 text-primary" />
           <span className="text-sm font-medium text-foreground">{isHistoryMode ? `Playback: Frame #${historyIndex + 1}` : sub.flowName}</span>
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed pl-5">{sub.description}</p>
+        <p className="text-xs text-muted-foreground leading-relaxed pl-5 line-clamp-2">{sub.description}</p>
       </div>
 
       {/* Scrubber - Dynamic Animation */}
@@ -238,7 +306,7 @@ function SubmissionCard({
         {/* Achievement Selector */}
         {achievements.length > 0 && sub.user_id && (
           <div className="flex flex-col gap-2 p-3 rounded-lg bg-primary/5 border border-primary/10">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Award Special Honor</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider font-mono">Award Special Honor</span>
             <div className="flex flex-wrap gap-1.5">
               {achievements.map(ach => (
                 <Button
@@ -281,6 +349,7 @@ export function ReviewPanel() {
           session_id: d.session_id,
           user_id: d.user_id,
           nickname: d.nickname,
+          challenge_name: d.challenge_name,
           station: d.station_id || "0",
           submittedAt: new Date(d.submitted_at).toLocaleTimeString(),
           flowName: d.flow_snapshot?.name || "Agent Prototype",

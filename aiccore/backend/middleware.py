@@ -3,7 +3,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -54,6 +54,10 @@ class AICCoreEventMiddleware(BaseHTTPMiddleware):
         
         if any(p in path for p in workspace_paths):
             if method in ["POST", "PATCH", "DELETE"]:
+                # If it is a flow save/update, we want the granular nodes/edges for live display
+                if "/api/v1/flows" in path and method in ["POST", "PATCH"]:
+                    return await self._handle_flow_save(request, call_next, session_id)
+                
                 is_workspace_change = True
 
         if is_workspace_change:
@@ -134,7 +138,84 @@ class AICCoreEventMiddleware(BaseHTTPMiddleware):
         }
         
         self._log_event(session_id, "flow_saved", payload)
+
+        # Also trigger a background snapshot for persistence
+        try:
+            from .eraser import capture_full_workspace_snapshot
+            asyncio.create_task(capture_full_workspace_snapshot(session_id))
+        except:
+            pass
+
+        # ---------------------------------------------------------
+        # AUTO-ACHIEVEMENT ENGINE (V1)
+        # ---------------------------------------------------------
+        try:
+            nodes = flow_data.get("nodes", [])
+            node_types = [n.get("type") for n in nodes if n.get("type")]
+            
+            # 1. Database Master (Detect any DB/Vector DB nodes)
+            db_keywords = ["PostgreSQL", "Supabase", "Memory", "VectorStore", "SQL"]
+            has_db = any(any(kw in nt for kw in db_keywords) for nt in node_types)
+            
+            # 2. Logic Architect (More than 10 nodes)
+            is_complex = len(nodes) > 10
+            
+            with Session(engine) as db_session:
+                from .models import User, Achievement, Session as AICSession
+                # Get the user for this session
+                stmt = select(User).join(AICSession).where(AICSession.id == session_id)
+                user = db_session.execute(stmt).scalars().first()
+                
+                if user:
+                    if has_db:
+                        self._auto_award(db_session, user, "Database Explorer", "Successfully integrated a memory or database node.")
+                    if is_complex:
+                        self._auto_award(db_session, user, "Logic Architect", "Built a workflow with more than 10 active nodes.")
+        except Exception as e:
+            print(f"⚠️ Auto-Achievement Error: {e}")
+
         return response
+
+    def _auto_award(self, db_session, user, badge_name, badge_desc):
+        # Professional standard: Prevent duplicate awards and auto-create missing badges
+        from .models import Achievement
+        
+        # Check if user already has it
+        if any(h.get("name") == badge_name for h in user.honors.values()):
+            return
+            
+        # Ensure the Achievement exists in the registry
+        stmt = select(Achievement).where(Achievement.name == badge_name)
+        ach = db_session.execute(stmt).scalars().first()
+        if not ach:
+            ach = Achievement(name=badge_name, description=badge_desc)
+            db_session.add(ach)
+            db_session.flush()
+            
+        # Award it
+        curr_honors = dict(user.honors or {})
+        curr_honors[str(ach.id)] = {
+            "name": ach.name,
+            "awarded_at": datetime.now(timezone.utc).isoformat(),
+            "type": "AUTO"
+        }
+        user.honors = curr_honors
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(user, "honors")
+        db_session.commit()
+        
+        # Trigger real-time broadcast
+        try:
+            import asyncio
+            from .broadcast import broadcast_manager
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(broadcast_manager.broadcast({
+                    "type": "HONOR_AWARDED", 
+                    "data": {"user_id": str(user.id), "achievement": badge_name, "is_auto": True}
+                }))
+        except:
+            pass
 
     async def _handle_granular_event(self, request: Request, call_next, session_id: UUID, category: str):
         path = request.url.path
@@ -147,9 +228,9 @@ class AICCoreEventMiddleware(BaseHTTPMiddleware):
                 metadata["vertex_id"] = parts[6]
 
         self._log_event(session_id, f"{category}_started", metadata)
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         response = await call_next(request)
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
         
         metadata["status"] = "success" if response.status_code < 400 else "error"
         metadata["status_code"] = response.status_code

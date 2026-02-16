@@ -9,30 +9,36 @@ import {
   Cpu,
   Shield,
   Lock,
+  Search,
 } from "lucide-react"
+
 import { cn } from "@/lib/utils"
 
-interface ArenaSidebarProps {
+interface BuilderSidebarProps {
   activeTab: string
   onTabChange: (tab: string) => void
   isAuthenticated?: boolean
 }
 
 const navItems = [
-  { id: "live", label: "Spectator Deck", icon: LayoutDashboard },
-  { id: "mosaic", label: "Mosaic Arena", icon: Trophy },
-  { id: "review", label: "Curator Review", icon: ClipboardCheck, protected: true },
+  { id: "live", label: "Builder Leaderboard", icon: LayoutDashboard },
+  { id: "challenges", label: "Mission Catalog", icon: Search },
+  { id: "mosaic", label: "Visual Display", icon: Trophy },
 ]
 
-const bottomItems = [
-  { id: "contestants", label: "Arena Registry", icon: Users, protected: true },
+const operationalItems = [
+  { id: "contestants", label: "Contestant Monitor", icon: Users, protected: true },
+  { id: "review", label: "Deployment Review", icon: ClipboardCheck, protected: true },
+]
+
+const systemItems = [
   { id: "stations", label: "Station Status", icon: Cpu, protected: true },
-  { id: "settings", label: "Arena Config", icon: Settings, protected: true },
+  { id: "settings", label: "System Config", icon: Settings, protected: true },
 ]
 
 
 
-export function ArenaSidebar({ activeTab, onTabChange, isAuthenticated = false }: ArenaSidebarProps) {
+export function BuilderSidebar({ activeTab, onTabChange, isAuthenticated = false }: BuilderSidebarProps) {
   const renderItem = (item: any) => {
     const Icon = item.icon
     const isActive = activeTab === item.id
@@ -68,20 +74,25 @@ export function ArenaSidebar({ activeTab, onTabChange, isAuthenticated = false }
         </div>
         <div className="flex flex-col">
           <span className="text-xs font-bold tracking-wide text-foreground uppercase tracking-wider">AICCORE</span>
-          <span className="text-[10px] font-mono text-muted-foreground/60 tracking-widest">ARENA</span>
+          <span className="text-[10px] font-mono text-muted-foreground/60 tracking-widest">BUILDER</span>
         </div>
       </div>
 
       <nav className="flex flex-col gap-1 p-3 flex-1">
         <span className="text-[10px] font-medium tracking-widest text-muted-foreground/50 uppercase px-2 pb-2 pt-1 font-mono">
-          Spectator
+          Dashboard Views
         </span>
         {navItems.map(renderItem)}
 
         <span className="text-[10px] font-medium tracking-widest text-muted-foreground/50 uppercase px-2 pb-2 pt-5 font-mono">
-          Operations
+          Tactical Operations
         </span>
-        {bottomItems.map(renderItem)}
+        {operationalItems.map(renderItem)}
+
+        <span className="text-[10px] font-medium tracking-widest text-muted-foreground/50 uppercase px-2 pb-2 pt-5 font-mono">
+          Builder Intelligence
+        </span>
+        {systemItems.map(renderItem)}
       </nav>
 
       <div className="p-3 border-t border-border">
@@ -106,7 +117,7 @@ export function ArenaSidebar({ activeTab, onTabChange, isAuthenticated = false }
         <div className="flex items-center gap-2 rounded-lg bg-secondary/30 px-3 py-2.5 ring-1 ring-border">
           <Trophy className="h-4 w-4 text-amber-400" />
           <div className="flex flex-col">
-            <span className="text-[10px] text-muted-foreground">Arena State</span>
+            <span className="text-[10px] text-muted-foreground">Builder State</span>
             <span className="text-xs font-mono font-semibold text-foreground italic">LIVE ROUND</span>
           </div>
         </div>

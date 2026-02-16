@@ -178,3 +178,60 @@ async def restore_user_workspace(manifest: dict):
             logger.info(f"✅ AICCORE: Workspace Manifested with {len(manifest.get('folders', []))} folders, {len(manifest.get('flows', []))} flows, and {len(manifest.get('variables', []))} vars.")
     except Exception as e:
         logger.error(f"❌ AICCORE: Failed to restore workspace: {e}")
+
+async def submit_workspace_as_flow(session_id: UUID):
+    """
+    Captures the most recent flow from the workspace and saves it as a Submission.
+    If multiple flows exist, it tries to find the most recently updated non-component flow.
+    """
+    logger.info(f"📤 AICCORE: Submitting workspace for session {session_id}...")
+    try:
+        async with session_scope() as session:
+            # 1. Fetch flows, sorted by updated_at
+            from sqlalchemy import desc
+            flow_stmt = select(Flow).where(Flow.is_component == False).order_by(desc(Flow.updated_at)).limit(1)
+            main_flow = (await session.execute(flow_stmt)).scalar()
+            
+            if not main_flow:
+                # Fallback to any flow if no non-component flows found
+                flow_stmt = select(Flow).order_by(desc(Flow.updated_at)).limit(1)
+                main_flow = (await session.execute(flow_stmt)).scalar()
+            
+            if not main_flow:
+                raise Exception("No flows found in workspace to submit.")
+
+            # 2. Save to AICCORE Submission table
+            from .database import engine as aic_engine
+            from .models import Submission, Session as AICSession, Event
+            from sqlalchemy.orm import Session as AICSessionORM
+            
+            with AICSessionORM(aic_engine) as db:
+                aic_session_obj = db.get(AICSession, session_id)
+                if not aic_session_obj:
+                    raise Exception("AICCORE Session not found.")
+                
+                new_submission = Submission(
+                    session_id=session_id,
+                    flow_snapshot=main_flow.data
+                )
+                db.add(new_submission)
+                aic_session_obj.is_submitted = True
+                
+                # Log event
+                stmt = select(Event).where(Event.session_id == session_id).order_by(Event.sequence_number.desc())
+                last_event = db.execute(stmt).scalars().first()
+                seq = (last_event.sequence_number + 1) if last_event else 0
+                
+                sub_event = Event(
+                    session_id=session_id,
+                    sequence_number=seq,
+                    event_type="submitted",
+                    payload={"submission_id": str(new_submission.id)}
+                )
+                db.add(sub_event)
+                
+                db.commit()
+                return str(new_submission.id)
+    except Exception as e:
+        logger.error(f"❌ AICCORE: Failed to submit workspace: {e}")
+        raise e

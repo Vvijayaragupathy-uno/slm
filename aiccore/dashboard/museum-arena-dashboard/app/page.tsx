@@ -1,5 +1,5 @@
-import { ArenaDashboard } from "@/components/arena/arena-dashboard"
+import { BuilderDashboard } from "@/components/arena/builder-dashboard"
 
 export default function Page() {
-  return <ArenaDashboard />
+  return <BuilderDashboard />
 }
