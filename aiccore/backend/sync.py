@@ -94,3 +94,27 @@ async def sync_to_cloud():
                 print(f"⚠️ Cloud Sync Error: {e}")
             
             await asyncio.sleep(5) # Sync every 5 seconds
+
+async def push_event_to_cloud(message: dict):
+    """
+    Pushes a single real-time event to the cloud hub.
+    """
+    if not CLOUD_API_URL:
+        return
+
+    # Map /sync to /events or similar if the cloud hub has a dedicated endpoint
+    # For now, we'll assume the cloud hub handles a 'type': 'event' payload at the same URL
+    # or we can derive a new URL. Let's use a sub-path /events.
+    endpoint = CLOUD_API_URL.replace("/sync", "/events")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                endpoint,
+                json=message,
+                headers={"X-AICCORE-KEY": CLOUD_API_KEY},
+                timeout=2.0
+            )
+    except Exception as e:
+        # Silently fail for real-time events to avoid flooding logs
+        pass

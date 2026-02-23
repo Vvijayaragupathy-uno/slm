@@ -24,8 +24,9 @@ export function MosaicDisplay() {
         // 1. Fetch initial active sessions
         const fetchSessions = async () => {
             try {
-                const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
-                const response = await fetch(`http://${host}:7860/api/v1/aiccore/sessions/active`)
+                const apiBase = process.env.NEXT_PUBLIC_AICCORE_API_URL ||
+                    (typeof window !== 'undefined' ? `http://${window.location.hostname}:7860` : 'http://localhost:7860');
+                const response = await fetch(`${apiBase}/api/v1/aiccore/sessions/active`)
                 const data = await response.json()
 
                 if (Array.isArray(data)) {
@@ -72,8 +73,10 @@ export function MosaicDisplay() {
         fetchSessions()
 
         // 2. Connect to WebSocket
-        const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
-        const ws = new WebSocket(`ws://${host}:7860/api/v1/aiccore/ws`)
+        const apiBase = process.env.NEXT_PUBLIC_AICCORE_API_URL ||
+            (typeof window !== 'undefined' ? `http://${window.location.hostname}:7860` : 'http://localhost:7860');
+        const wsUrl = apiBase.replace("http", "ws") + "/api/v1/aiccore/ws";
+        const ws = new WebSocket(wsUrl)
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data)

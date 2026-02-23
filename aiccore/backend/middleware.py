@@ -282,12 +282,18 @@ class AICCoreEventMiddleware(BaseHTTPMiddleware):
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
-                    loop.create_task(broadcast_manager.broadcast({
+                    event_data = {
                         "session_id": str(session_id),
                         "event_type": event_type,
                         "sequence_number": seq,
                         "timestamp": event.timestamp,
                         "payload": payload
-                    }))
+                    }
+                    # Local Broadcast
+                    loop.create_task(broadcast_manager.broadcast(event_data))
+                    
+                    # Cloud Broadcast (If configured)
+                    from .sync import push_event_to_cloud
+                    loop.create_task(push_event_to_cloud(event_data))
             except Exception as e:
                 print(f"❌ Failed to broadcast event: {e}")

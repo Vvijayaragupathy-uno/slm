@@ -100,17 +100,10 @@ def create_aiccore_app():
     print(f"🚀 Starting Langflow with backend_only={backend_only}")
     app = setup_app(backend_only=backend_only)
 
-    # Enable CORS for the Dashboard
+    # Enable CORS for the Dashboard (Broadened for Local Arena Deployment)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",
-            "http://localhost:3001",
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1:3001",
-            "http://127.0.0.1:5173", # Langflow Dev
-            "http://localhost:5173"
-        ],
+        allow_origins=["*"], # Allow all origins for local network flexibility
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -786,8 +779,11 @@ def create_aiccore_app():
                     lh = s.last_heartbeat
                     if lh.tzinfo is None: lh = lh.replace(tzinfo=timezone.utc)
                     if (now - lh).total_seconds() > 300: # 5 Minute Timeout
-                        # If it was occupied, it's now available
-                        status = "available" if s.status == "occupied" else "offline"
+                        # If it was occupied due to connection, release it
+                        if s.status == "occupied": 
+                            status = "available"
+                        elif s.status == "available":
+                            status = "offline"
                 
                 results.append({
                     "id": s.id,

@@ -36,6 +36,11 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
     const [error, setError] = useState<string | null>(null)
     const [successCode, setSuccessCode] = useState<string | null>(null)
     const [selectedStats, setSelectedStats] = useState<any>(null)
+    const [isMounted, setIsMounted] = useState(false)
+
+    useEffect(() => {
+        setIsMounted(true)
+    }, [])
 
     useEffect(() => {
         if (view === "register") {
@@ -187,8 +192,8 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
                             <p className="text-[10px] text-muted-foreground uppercase font-medium">Auto-navigating in 5s...</p>
                         </div>
                     </div>
-                ) : view === "unlock" ? (
-                    <form onSubmit={handleUnlock} className="flex w-full flex-col gap-6 w-full">
+                ) : view === "unlock" && isMounted ? (
+                    <form onSubmit={handleUnlock} className="flex w-full flex-col gap-6 w-full" suppressHydrationWarning>
                         <div className="relative group">
                             <input
                                 type="text"
@@ -203,7 +208,11 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
                                     error && "border-destructive/50 focus:border-destructive/50 focus:ring-destructive/10"
                                 )}
                                 disabled={loading}
-                                autoFocus
+                                autoComplete="one-time-code"
+                                autoCorrect="off"
+                                spellCheck="false"
+                                ref={(input) => input && input.focus()}
+                                suppressHydrationWarning
                             />
                         </div>
 
